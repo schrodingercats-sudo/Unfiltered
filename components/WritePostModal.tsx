@@ -17,11 +17,12 @@ export function WritePostModal({ isOpen, onClose, onPostCreated }: WritePostModa
   const [isAnonymous, setIsAnonymous] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cooldown, setCooldown] = useState(0);
 
   if (!isOpen) return null;
 
   const handlePost = async () => {
-    if (!content.trim()) return;
+    if (!content.trim() || loading) return;
     if (content.length > 500) {
       setError('Post must be under 500 characters');
       return;
@@ -78,6 +79,14 @@ export function WritePostModal({ isOpen, onClose, onPostCreated }: WritePostModa
       setContent('');
       onPostCreated();
       onClose();
+      // Start 30s cooldown
+      setCooldown(30);
+      const interval = setInterval(() => {
+        setCooldown((prev) => {
+          if (prev <= 1) { clearInterval(interval); return 0; }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (err: any) {
       console.error('Post error:', err);
       setError(err.message || 'Failed to post');
@@ -95,11 +104,11 @@ export function WritePostModal({ isOpen, onClose, onPostCreated }: WritePostModa
           </button>
           <button
             onClick={handlePost}
-            disabled={loading || !content.trim()}
-            className="bg-white text-black px-6 py-2 rounded-full font-bold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            disabled={loading || !content.trim() || cooldown > 0}
+            className="bg-white text-black px-6 py-2 rounded-full font-bold text-sm hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-h-[44px]"
           >
             {loading && <Loader2 size={16} className="animate-spin" />}
-            Post
+            {cooldown > 0 ? `Wait ${cooldown}s` : 'Post'}
           </button>
         </div>
 

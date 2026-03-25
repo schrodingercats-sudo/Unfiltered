@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { BottomNav } from '@/components/BottomNav';
 import { PostCard } from '@/components/PostCard';
-import { LogOut, Settings, Link as LinkIcon, Instagram, Twitter, Edit3, X, Camera, Trash2, ArrowLeft } from 'lucide-react';
+import { Settings, Link as LinkIcon, Instagram, Twitter, Edit3, X, Camera, Trash2, ArrowLeft } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import Image from 'next/image';
@@ -24,7 +24,6 @@ function ProfileContent() {
     website: '',
     instagram: '',
     twitter: '',
-    default_anonymous: false
   });
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,7 +77,6 @@ function ProfileContent() {
               is_banned: false,
               post_count: 0,
               total_likes_received: 0,
-              default_anonymous: true
             })
             .select()
             .single();
@@ -136,13 +134,12 @@ function ProfileContent() {
           website: currentProfile.website || '',
           instagram: currentProfile.instagram || '',
           twitter: currentProfile.twitter || '',
-          default_anonymous: currentProfile.default_anonymous || false
         });
       }
     } catch (error: any) {
-      console.error('Error fetching profile data:', error);
-      setError(error.message || 'Failed to fetch profile data');
-      if (error.message) console.error('Error message:', error.message);
+      const msg = error?.message || JSON.stringify(error) || 'Failed to fetch profile data';
+      console.error('Error fetching profile data:', msg);
+      setError(msg);
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -222,7 +219,6 @@ function ProfileContent() {
           website: editForm.website,
           instagram: editForm.instagram,
           twitter: editForm.twitter,
-          default_anonymous: editForm.default_anonymous,
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
@@ -297,10 +293,10 @@ function ProfileContent() {
         </div>
         {isOwnProfile && (
           <button 
-            onClick={handleLogout}
+            onClick={() => router.push('/settings')}
             className="text-gray-400 hover:text-white transition-colors"
           >
-            <LogOut size={20} />
+            <Settings size={20} />
           </button>
         )}
       </header>
@@ -395,7 +391,16 @@ function ProfileContent() {
 
           {isOwnProfile && (
             <button 
-              onClick={() => setIsEditModalOpen(true)}
+              onClick={() => {
+                setEditForm({
+                  display_name: viewProfile.display_name || '',
+                  bio: viewProfile.bio || '',
+                  website: viewProfile.website || '',
+                  instagram: viewProfile.instagram || '',
+                  twitter: viewProfile.twitter || '',
+                });
+                setIsEditModalOpen(true);
+              }}
               className="mt-8 w-full py-3 bg-gray-900 border border-gray-800 rounded-xl font-bold text-sm hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
             >
               <Edit3 size={16} />
@@ -527,23 +532,6 @@ function ProfileContent() {
                         />
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-black border border-gray-800 rounded-2xl">
-                    <div>
-                      <div className="text-sm font-bold">Always post anonymously</div>
-                      <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mt-0.5">Default preference</div>
-                    </div>
-                    <button 
-                      type="button"
-                      onClick={() => setEditForm({ ...editForm, default_anonymous: !editForm.default_anonymous })}
-                      className={`w-12 h-6 rounded-full transition-colors relative ${editForm.default_anonymous ? 'bg-white' : 'bg-gray-800'}`}
-                    >
-                      <motion.div 
-                        animate={{ x: editForm.default_anonymous ? 24 : 4 }}
-                        className={`absolute top-1 w-4 h-4 rounded-full ${editForm.default_anonymous ? 'bg-black' : 'bg-gray-400'}`}
-                      />
-                    </button>
                   </div>
                 </div>
 

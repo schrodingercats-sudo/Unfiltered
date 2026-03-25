@@ -3,23 +3,27 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 type AuthContextType = {
   user: User | null;
   profile: any | null;
   loading: boolean;
+  needsOnboarding: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  needsOnboarding: false,
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   const fetchingRef = useRef(false);
 
@@ -37,6 +41,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch (err) {
         console.error('Error fetching session:', err);
+        // Supabase connection failure — redirect to maintenance
+        router.push('/maintenance');
         setLoading(false);
       }
     };
@@ -73,7 +79,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       let currentProfile = data;
 
       if (!currentProfile && !error) {
-        // Create default profile if missing
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert({
@@ -92,7 +97,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (!createError) {
           currentProfile = newProfile;
         } else if (createError.code === '23505') {
-          // Race condition: profile created by another process
           const { data: retryData } = await supabase
             .from('profiles')
             .select('*')
@@ -103,7 +107,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (currentProfile) {
-        // Auto-promote specific email to admin
         if (email === 'pratham.solanki30@gmail.com' && currentProfile.role !== 'admin') {
           const { data: updatedData, error: updateError } = await supabase
             .from('profiles')
@@ -127,8 +130,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const needsOnboarding = !!user && !!profile && !profile.display_name && profile.alias?.startsWith('User_');
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading }}>
+    <AuthContext.Provider value={{ user, profile, loading, needsOnboarding }}>
       {children}
     </AuthContext.Provider>
   );

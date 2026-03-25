@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Heart, Repeat2, Share, Bookmark, Flag } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,38 @@ import { useAuth } from '@/components/AuthProvider';
 import { ShareModal } from '@/components/ShareModal';
 import Image from 'next/image';
 import Link from 'next/link';
+
+export function VerifiedBadge({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      className="inline-block flex-shrink-0"
+      aria-label="Verified"
+    >
+      <path
+        d="M9 12l2 2 4-4"
+        stroke="#000"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 1l2.39 2.42L17.5 3l.42 3.13L21 8.5l-1.42 2.89L21 14.28l-3.08 2.37L17.5 19.78l-3.11.42L12 22.61l-2.39-2.41L6.5 19.78l-.42-3.13L3 14.28l1.42-2.89L3 8.5l3.08-2.37L6.5 3l3.11-.42L12 1z"
+        fill="#FFD700"
+      />
+      <path
+        d="M9 12l2 2 4-4"
+        stroke="#000"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 interface PostCardProps {
   post: any;
@@ -21,42 +53,31 @@ export function PostCard({ post }: PostCardProps) {
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [repostCount, setRepostCount] = useState(post.repost_count);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const busyRef = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
     const checkInteractions = async () => {
       if (!user) return;
-      // Check like
-      const { data: likeData } = await supabase
-        .from('likes')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('post_id', post.id)
-        .single();
+      const [{ data: likeData }, { data: saveData }, { data: repostData }] = await Promise.all([
+        supabase.from('likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle(),
+        supabase.from('saves').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle(),
+        supabase.from('reposts').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle(),
+      ]);
       if (likeData) setIsLiked(true);
-
-      // Check save
-      const { data: saveData } = await supabase
-        .from('saves')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('post_id', post.id)
-        .single();
       if (saveData) setIsSaved(true);
-
-      // Check repost
-      const { data: repostData } = await supabase
-        .from('reposts')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('post_id', post.id)
-        .single();
       if (repostData) setIsReposted(true);
     };
 
     checkInteractions();
   }, [user, post.id]);
 
-  const handleLike = async () => {
+  const guard = useCallback(async (key: string, fn: () => Promise<void>) => {
+    if (busyRef.current[key]) return;
+    busyRef.current[key] = true;
+    try { await fn(); } finally { busyRef.current[key] = false; }
+  }, []);
+
+  const handleLike = () => guard('like', async () => {
     if (!user) return;
     if (isLiked) {
       setIsLiked(false);
@@ -67,9 +88,9 @@ export function PostCard({ post }: PostCardProps) {
       setLikeCount((prev: number) => prev + 1);
       await supabase.from('likes').insert({ user_id: user.id, post_id: post.id });
     }
-  };
+  });
 
-  const handleSave = async () => {
+  const handleSave = () => guard('save', async () => {
     if (!user) return;
     if (isSaved) {
       setIsSaved(false);
@@ -78,9 +99,9 @@ export function PostCard({ post }: PostCardProps) {
       setIsSaved(true);
       await supabase.from('saves').insert({ user_id: user.id, post_id: post.id });
     }
-  };
+  });
 
-  const handleRepost = async () => {
+  const handleRepost = () => guard('repost', async () => {
     if (!user) return;
     if (isReposted) {
       setIsReposted(false);
@@ -91,13 +112,13 @@ export function PostCard({ post }: PostCardProps) {
       setRepostCount((prev: number) => prev + 1);
       await supabase.from('reposts').insert({ user_id: user.id, post_id: post.id });
     }
-  };
+  });
 
   const handleShare = () => {
     setIsShareModalOpen(true);
   };
 
-  const handleReport = async () => {
+  const handleReport = () => guard('report', async () => {
     if (!user) return;
     const reason = prompt('Reason for reporting (harassment, spam, hate_speech, self_harm, other):');
     if (reason && ['harassment', 'spam', 'hate_speech', 'self_harm', 'other'].includes(reason)) {
@@ -110,11 +131,12 @@ export function PostCard({ post }: PostCardProps) {
     } else if (reason) {
       alert('Invalid reason.');
     }
-  };
+  });
 
   const authorName = post.is_anonymous ? 'Anonymous' : (post.profiles?.display_name || post.profiles?.alias || 'Unknown');
   const authorAlias = post.is_anonymous ? null : post.profiles?.alias;
   const authorAvatar = post.is_anonymous ? null : post.profiles?.avatar_url;
+  const isVerified = !post.is_anonymous && post.profiles?.role === 'admin';
 
   return (
     <>
@@ -149,6 +171,7 @@ export function PostCard({ post }: PostCardProps) {
                   >
                     {authorName}
                   </Link>
+                  {isVerified && <VerifiedBadge size={16} />}
                   {authorAlias && (
                     <span className="text-xs text-gray-500 font-medium truncate max-w-[100px]">
                       @{authorAlias}
@@ -161,7 +184,7 @@ export function PostCard({ post }: PostCardProps) {
               </div>
               <button 
                 onClick={handleReport}
-                className="text-gray-600 hover:text-gray-400 transition-colors"
+                className="text-gray-600 hover:text-gray-400 transition-colors p-1 min-w-[32px] min-h-[32px] flex items-center justify-center"
                 title="Report post"
               >
                 <Flag size={14} />
@@ -177,35 +200,35 @@ export function PostCard({ post }: PostCardProps) {
             <div className="flex justify-between items-center text-gray-500 max-w-sm">
               <button 
                 onClick={handleLike}
-                className={`flex items-center gap-1.5 transition-colors group ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
+                className={`flex items-center gap-1.5 transition-colors group min-h-[44px] ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
               >
-                <div className={`p-2 rounded-full group-hover:bg-red-500/10 transition-colors`}>
+                <div className="p-2 rounded-full group-hover:bg-red-500/10 transition-colors">
                   <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} />
                 </div>
                 <span className="text-xs font-medium">{likeCount}</span>
               </button>
               <button 
                 onClick={handleRepost}
-                className={`flex items-center gap-1.5 transition-colors group ${isReposted ? 'text-green-500' : 'hover:text-green-500'}`}
+                className={`flex items-center gap-1.5 transition-colors group min-h-[44px] ${isReposted ? 'text-green-500' : 'hover:text-green-500'}`}
               >
-                <div className={`p-2 rounded-full group-hover:bg-green-500/10 transition-colors`}>
+                <div className="p-2 rounded-full group-hover:bg-green-500/10 transition-colors">
                   <Repeat2 size={18} />
                 </div>
                 <span className="text-xs font-medium">{repostCount}</span>
               </button>
               <button 
                 onClick={handleShare}
-                className="flex items-center gap-1.5 hover:text-blue-500 transition-colors group"
+                className="flex items-center gap-1.5 hover:text-blue-500 transition-colors group min-h-[44px]"
               >
-                <div className={`p-2 rounded-full group-hover:bg-blue-500/10 transition-colors`}>
+                <div className="p-2 rounded-full group-hover:bg-blue-500/10 transition-colors">
                   <Share size={18} />
                 </div>
               </button>
               <button 
                 onClick={handleSave}
-                className={`flex items-center gap-1.5 transition-colors group ${isSaved ? 'text-yellow-500' : 'hover:text-yellow-500'}`}
+                className={`flex items-center gap-1.5 transition-colors group min-h-[44px] ${isSaved ? 'text-yellow-500' : 'hover:text-yellow-500'}`}
               >
-                <div className={`p-2 rounded-full group-hover:bg-yellow-500/10 transition-colors`}>
+                <div className="p-2 rounded-full group-hover:bg-yellow-500/10 transition-colors">
                   <Bookmark size={18} fill={isSaved ? 'currentColor' : 'none'} />
                 </div>
               </button>

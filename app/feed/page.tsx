@@ -6,14 +6,18 @@ import { useAuth } from '@/components/AuthProvider';
 import { BottomNav } from '@/components/BottomNav';
 import { WritePostModal } from '@/components/WritePostModal';
 import { PostCard } from '@/components/PostCard';
-import { PenSquare } from 'lucide-react';
+import { SwipeFeed } from '@/components/SwipeFeed';
+import { PenSquare, LayoutList, Layers } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function Feed() {
-  const { user, profile } = useAuth();
+  const { user, profile, needsOnboarding } = useAuth();
+  const router = useRouter();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'latest' | 'trending' | 'my_posts'>('latest');
   const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'scroll' | 'swipe'>('scroll');
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -22,14 +26,13 @@ export default function Feed() {
         .from('posts')
         .select(`
           *,
-          profiles:user_id (alias, display_name, avatar_url)
+          profiles:user_id (alias, display_name, avatar_url, role)
         `)
         .eq('status', 'active');
 
       if (activeTab === 'latest') {
         query = query.order('created_at', { ascending: false });
       } else if (activeTab === 'trending') {
-        // Simple trending: order by likes
         query = query.order('like_count', { ascending: false });
       } else if (activeTab === 'my_posts' && user) {
         query = query.eq('user_id', user.id).order('created_at', { ascending: false });
@@ -49,6 +52,12 @@ export default function Feed() {
   useEffect(() => {
     fetchPosts();
   }, [activeTab, user]);
+
+  useEffect(() => {
+    if (needsOnboarding) {
+      router.push('/onboarding');
+    }
+  }, [needsOnboarding, router]);
 
   if (profile?.is_banned) {
     return (
@@ -72,13 +81,27 @@ export default function Feed() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 flex justify-between items-center">
         <h1 className="text-xl font-black tracking-tighter uppercase">UNFILTERED</h1>
-        <button 
-          onClick={() => setIsWriteModalOpen(true)}
-          className="bg-white text-black px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 hover:bg-gray-200 transition-colors"
-        >
-          <PenSquare size={16} />
-          Write
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <button
+            onClick={() => setViewMode(viewMode === 'scroll' ? 'swipe' : 'scroll')}
+            className={`p-2 rounded-full transition-colors ${
+              viewMode === 'swipe'
+                ? 'bg-white text-black'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            }`}
+            title={viewMode === 'scroll' ? 'Switch to Swipe mode' : 'Switch to Scroll mode'}
+          >
+            {viewMode === 'scroll' ? <Layers size={18} /> : <LayoutList size={18} />}
+          </button>
+          <button 
+            onClick={() => setIsWriteModalOpen(true)}
+            className="bg-white text-black px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 hover:bg-gray-200 transition-colors"
+          >
+            <PenSquare size={16} />
+            Write
+          </button>
+        </div>
       </header>
 
       {/* Tabs */}
@@ -105,12 +128,14 @@ export default function Feed() {
           <div className="flex justify-center p-8 text-gray-500">Loading...</div>
         ) : posts.length === 0 ? (
           <div className="flex justify-center p-8 text-gray-500">No posts found.</div>
-        ) : (
+        ) : viewMode === 'scroll' ? (
           <div className="divide-y divide-gray-800">
             {posts.map((post) => (
               <PostCard key={post.id} post={post} />
             ))}
           </div>
+        ) : (
+          <SwipeFeed posts={posts} userId={user?.id || ''} onRefresh={fetchPosts} />
         )}
       </main>
 

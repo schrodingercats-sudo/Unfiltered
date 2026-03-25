@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { BottomNav } from '@/components/BottomNav';
+import { VerifiedBadge } from '@/components/PostCard';
 import { formatDistanceToNow } from 'date-fns';
 import { Send, MessageSquare, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -16,15 +17,15 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [commentError, setCommentError] = useState('');
 
   const fetchPostAndComments = async () => {
     try {
-      // Fetch post
       const { data: postData, error: postError } = await supabase
         .from('posts')
         .select(`
           *,
-          profiles:user_id (alias)
+          profiles:user_id (alias, display_name, avatar_url, role)
         `)
         .eq('id', id)
         .single();
@@ -32,12 +33,11 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
       if (postError) throw postError;
       setPost(postData);
 
-      // Fetch comments
       const { data: commentsData, error: commentsError } = await supabase
         .from('comments')
         .select(`
           *,
-          profiles:user_id (alias)
+          profiles:user_id (alias, role)
         `)
         .eq('post_id', id)
         .order('created_at', { ascending: true });
@@ -62,7 +62,32 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
     if (!newComment.trim() || submitting) return;
 
     setSubmitting(true);
+    setCommentError('');
+
     try {
+      // Moderation check
+      const modRes = await fetch('/api/moderate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: newComment.trim() }),
+      });
+
+      const modData = await modRes.json();
+
+      if (modData.flagged) {
+        if (modData.banUser && user) {
+          await supabase
+            .from('profiles')
+            .update({ is_banned: true })
+            .eq('id', user.id);
+          window.location.reload();
+          return;
+        }
+        setCommentError(modData.reason || 'Comment violates community guidelines.');
+        setSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from('comments').insert({
         post_id: id,
         user_id: user!.id,
@@ -71,6 +96,7 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
 
       if (error) throw error;
       setNewComment('');
+      setCommentError('');
       fetchPostAndComments();
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -94,6 +120,8 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
     );
   }
 
+  const isPostVerified = !post.is_anonymous && post.profiles?.role === 'admin';
+
   return (
     <div className="min-h-screen bg-black text-white pb-24">
       <header className="sticky top-0 z-10 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 flex items-center gap-4">
@@ -108,8 +136,9 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
         <div className="p-6 border-b border-gray-800">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <div className="font-bold text-gray-300">
-                {post.is_anonymous ? 'Anonymous' : post.profiles?.alias || 'Unknown'}
+              <div className="flex items-center gap-1.5 font-bold text-gray-300">
+                {post.is_anonymous ? 'Anonymous' : post.profiles?.display_name || post.profiles?.alias || 'Unknown'}
+                {isPostVerified && <VerifiedBadge size={16} />}
               </div>
               <div className="text-xs text-gray-500 mt-1">
                 {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
@@ -132,22 +161,26 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
             {comments.length === 0 ? (
               <p className="text-center text-gray-500 py-8 text-sm">No comments yet. Be the first to reply!</p>
             ) : (
-              comments.map((comment) => (
-                <div key={comment.id} className="flex gap-3">
-                  <div className="w-8 h-8 bg-gray-800 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold">
-                    {comment.profiles?.alias?.charAt(0).toUpperCase() || '?'}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-bold text-sm text-gray-300">{comment.profiles?.alias || 'Unknown'}</span>
-                      <span className="text-[10px] text-gray-500">
-                        {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                      </span>
+              comments.map((comment) => {
+                const isCommentVerified = comment.profiles?.role === 'admin';
+                return (
+                  <div key={comment.id} className="flex gap-3">
+                    <div className="w-8 h-8 bg-gray-800 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold">
+                      {comment.profiles?.alias?.charAt(0).toUpperCase() || '?'}
                     </div>
-                    <p className="text-sm text-gray-300 leading-relaxed">{comment.content}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="font-bold text-sm text-gray-300">{comment.profiles?.alias || 'Unknown'}</span>
+                        {isCommentVerified && <VerifiedBadge size={13} />}
+                        <span className="text-[10px] text-gray-500">
+                          {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-300 leading-relaxed">{comment.content}</p>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -155,6 +188,11 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
 
       {/* Comment Input */}
       <div className="fixed bottom-16 left-0 right-0 bg-black border-t border-gray-800 p-4 max-w-md mx-auto">
+        {commentError && (
+          <div className="mb-2 p-2 bg-red-500/10 border border-red-500/30 text-red-300 rounded-lg text-xs">
+            {commentError}
+          </div>
+        )}
         <form onSubmit={handleAddComment} className="flex gap-2">
           <input
             type="text"
@@ -164,8 +202,7 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
             className="flex-1 bg-gray-900 border border-gray-800 rounded-full px-4 py-2 text-sm focus:ring-1 focus:ring-white outline-none transition-all"
           />
           <button
-            type="submit"
-            disabled={!newComment.trim() || submitting}
+            type="submit"            disabled={!newComment.trim() || submitting}
             className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center disabled:opacity-50 transition-opacity"
           >
             <Send size={18} />

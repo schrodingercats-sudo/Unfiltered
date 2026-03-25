@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -30,42 +31,68 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-black text-white">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <Link href="/login" className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-6">
+    <div className="auth-page">
+      <motion.div
+        className="auth-card max-w-sm w-full space-y-7 relative z-10"
+        initial={{ y: 30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div className="space-y-4">
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 text-white/40 hover:text-white transition-colors text-sm"
+          >
             <ArrowLeft size={16} />
             <span>Back to Login</span>
           </Link>
-          <h1 className="text-4xl font-black tracking-tighter uppercase">Reset Password</h1>
-          <p className="mt-2 text-gray-400">Enter your email to receive a reset link</p>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight">Reset Password</h1>
+            <p className="text-white/35 text-sm">Enter your email to receive a reset link</p>
+          </div>
         </div>
 
-        <form onSubmit={handleResetRequest} className="space-y-6">
-          {error && <div className="p-3 bg-red-900/50 border border-red-500 text-red-200 rounded-md text-sm">{error}</div>}
-          {message && <div className="p-3 bg-green-900/50 border border-green-500 text-green-200 rounded-md text-sm">{message}</div>}
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-lg focus:ring-2 focus:ring-white focus:border-transparent outline-none transition-all"
-              placeholder="you@paruluniversity.ac.in"
-            />
-          </div>
+        <form onSubmit={handleResetRequest} className="space-y-5">
+          {error && (
+            <motion.div
+              className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 rounded-xl text-sm"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+            >
+              {error}
+            </motion.div>
+          )}
+          {message && (
+            <motion.div
+              className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-xl text-sm"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+            >
+              {message}
+            </motion.div>
+          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-4 bg-white text-black font-bold rounded-full hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Sending Link...' : 'Send Reset Link'}
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="auth-input"
+            placeholder="Email address"
+          />
+
+          <button type="submit" disabled={loading} className="auth-btn-primary">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                Sending...
+              </span>
+            ) : (
+              'Send Reset Link'
+            )}
           </button>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }
