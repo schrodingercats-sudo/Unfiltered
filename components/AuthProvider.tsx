@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
@@ -21,14 +21,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchingRef = useRef(false);
+
   useEffect(() => {
     const fetchSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
-        setUser(session?.user || null);
-        if (session?.user) {
-          fetchProfile(session.user.id, session.user.email);
+        const currentUser = session?.user || null;
+        setUser(currentUser);
+        if (currentUser) {
+          fetchProfile(currentUser.id, currentUser.email, currentUser.user_metadata?.college);
         } else {
           setLoading(false);
         }
@@ -42,9 +45,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setUser(session?.user || null);
-        if (session?.user) {
-          fetchProfile(session.user.id, session.user.email);
+        const currentUser = session?.user || null;
+        setUser(currentUser);
+        if (currentUser) {
+          fetchProfile(currentUser.id, currentUser.email, currentUser.user_metadata?.college);
         } else {
           setProfile(null);
           setLoading(false);
@@ -55,35 +59,71 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string, email?: string) => {
+  const fetchProfile = async (userId: string, email?: string, college?: string) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
-      if (!error && data) {
+      let currentProfile = data;
+
+      if (!currentProfile && !error) {
+        // Create default profile if missing
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: email,
+            alias: `User_${userId.slice(0, 5)}`,
+            college: college || 'Unknown College',
+            is_banned: false,
+            post_count: 0,
+            total_likes_received: 0,
+            default_anonymous: true
+          })
+          .select()
+          .maybeSingle();
+        
+        if (!createError) {
+          currentProfile = newProfile;
+        } else if (createError.code === '23505') {
+          // Race condition: profile created by another process
+          const { data: retryData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .maybeSingle();
+          currentProfile = retryData;
+        }
+      }
+
+      if (currentProfile) {
         // Auto-promote specific email to admin
-        if (email === 'pratham.solanki30@gmail.com' && data.role !== 'admin') {
+        if (email === 'pratham.solanki30@gmail.com' && currentProfile.role !== 'admin') {
           const { data: updatedData, error: updateError } = await supabase
             .from('profiles')
             .update({ role: 'admin' })
             .eq('id', userId)
             .select()
-            .single();
+            .maybeSingle();
             
           if (!updateError && updatedData) {
             setProfile(updatedData);
             return;
           }
         }
-        setProfile(data);
+        setProfile(currentProfile);
       }
     } catch (err) {
       console.error('Error fetching profile:', err);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   };
 

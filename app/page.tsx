@@ -9,14 +9,17 @@ export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/feed');
+    }
+  }, [user, loading, router]);
+
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-black text-white">Loading...</div>;
   }
 
   if (user) {
-    // We will build the feed here later, or redirect to a feed page.
-    // Let's redirect to /feed for now.
-    router.push('/feed');
     return null;
   }
 

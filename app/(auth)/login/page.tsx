@@ -23,7 +23,11 @@ export default function Login() {
     });
 
     if (error) {
-      setError(error.message);
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        setError('Your email is not confirmed yet. Please check your inbox for the verification link.');
+      } else {
+        setError(error.message);
+      }
     } else {
       router.push('/feed');
     }
@@ -55,7 +59,12 @@ export default function Login() {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Password</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-300">Password</label>
+                <Link href="/forgot-password" title="Forgot Password?" className="text-xs text-gray-500 hover:text-white transition-colors">
+                  Forgot Password?
+                </Link>
+              </div>
               <input
                 type="password"
                 required

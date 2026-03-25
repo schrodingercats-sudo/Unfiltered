@@ -7,12 +7,14 @@ import { BottomNav } from '@/components/BottomNav';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'motion/react';
 import { Heart, X, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function Discover() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const router = useRouter();
 
   const fetchPosts = async () => {
     setLoading(true);
@@ -21,7 +23,7 @@ export default function Discover() {
         .from('posts')
         .select(`
           *,
-          profiles:user_id (alias)
+          profiles:user_id (alias, display_name, avatar_url)
         `)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
@@ -37,10 +39,14 @@ export default function Discover() {
   };
 
   useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+      return;
+    }
     if (user) {
       fetchPosts();
     }
-  }, [user]);
+  }, [user, authLoading, router]);
 
   const handleSwipe = async (direction: 'left' | 'right', postId: string) => {
     if (direction === 'right') {
@@ -54,9 +60,11 @@ export default function Discover() {
     setCurrentIndex((prev) => prev + 1);
   };
 
-  if (!user) {
+  if (authLoading) {
     return <div className="min-h-screen bg-black text-white flex items-center justify-center">Loading...</div>;
   }
+
+  if (!user) return null;
 
   if (profile?.is_banned) {
     return (

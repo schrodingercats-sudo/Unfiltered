@@ -22,7 +22,7 @@ export default function Feed() {
         .from('posts')
         .select(`
           *,
-          profiles:user_id (alias)
+          profiles:user_id (alias, display_name, avatar_url)
         `)
         .eq('status', 'active');
 

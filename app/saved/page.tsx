@@ -5,11 +5,13 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { BottomNav } from '@/components/BottomNav';
 import { PostCard } from '@/components/PostCard';
+import { useRouter } from 'next/navigation';
 
 export default function Saved() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   const fetchSavedPosts = async () => {
     setLoading(true);
@@ -27,7 +29,7 @@ export default function Saved() {
           .from('posts')
           .select(`
             *,
-            profiles:user_id (alias)
+            profiles:user_id (alias, display_name, avatar_url)
           `)
           .in('id', postIds)
           .eq('status', 'active')
@@ -46,14 +48,20 @@ export default function Saved() {
   };
 
   useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+      return;
+    }
     if (user) {
       fetchSavedPosts();
     }
-  }, [user]);
+  }, [user, authLoading, router]);
 
-  if (!user) {
+  if (authLoading) {
     return <div className="min-h-screen bg-black text-white flex items-center justify-center">Loading...</div>;
   }
+
+  if (!user) return null;
 
   if (profile?.is_banned) {
     return (

@@ -6,6 +6,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { ShareModal } from '@/components/ShareModal';
+import Image from 'next/image';
+import Link from 'next/link';
 
 interface PostCardProps {
   post: any;
@@ -22,11 +24,12 @@ export function PostCard({ post }: PostCardProps) {
 
   useEffect(() => {
     const checkInteractions = async () => {
+      if (!user) return;
       // Check like
       const { data: likeData } = await supabase
         .from('likes')
         .select('id')
-        .eq('user_id', user!.id)
+        .eq('user_id', user.id)
         .eq('post_id', post.id)
         .single();
       if (likeData) setIsLiked(true);
@@ -35,7 +38,7 @@ export function PostCard({ post }: PostCardProps) {
       const { data: saveData } = await supabase
         .from('saves')
         .select('id')
-        .eq('user_id', user!.id)
+        .eq('user_id', user.id)
         .eq('post_id', post.id)
         .single();
       if (saveData) setIsSaved(true);
@@ -44,15 +47,13 @@ export function PostCard({ post }: PostCardProps) {
       const { data: repostData } = await supabase
         .from('reposts')
         .select('id')
-        .eq('user_id', user!.id)
+        .eq('user_id', user.id)
         .eq('post_id', post.id)
         .single();
       if (repostData) setIsReposted(true);
     };
 
-    if (user) {
-      checkInteractions();
-    }
+    checkInteractions();
   }, [user, post.id]);
 
   const handleLike = async () => {
@@ -111,55 +112,105 @@ export function PostCard({ post }: PostCardProps) {
     }
   };
 
+  const authorName = post.is_anonymous ? 'Anonymous' : (post.profiles?.display_name || post.profiles?.alias || 'Unknown');
+  const authorAlias = post.is_anonymous ? null : post.profiles?.alias;
+  const authorAvatar = post.is_anonymous ? null : post.profiles?.avatar_url;
+
   return (
     <>
-      <article className="p-4 hover:bg-gray-900/50 transition-colors">
-        <div className="flex justify-between items-start mb-2">
-          <div className="font-bold text-gray-300">
-            {post.is_anonymous ? 'Anonymous' : post.profiles?.alias || 'Unknown'}
+      <article className="p-4 hover:bg-gray-900/50 transition-colors border-b border-gray-800 last:border-0">
+        <div className="flex gap-3">
+          {/* Avatar */}
+          <div className="flex-shrink-0">
+            {authorAvatar ? (
+              <Link href={`/profile?id=${post.user_id}`} className="block w-10 h-10 rounded-full overflow-hidden relative">
+                <Image 
+                  src={authorAvatar} 
+                  alt={authorName} 
+                  fill 
+                  className="object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              </Link>
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center font-bold text-gray-400">
+                {authorName.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
-          <div className="text-xs text-gray-500">
-            {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-          </div>
-        </div>
-        
-        <p className="text-lg mb-4 whitespace-pre-wrap leading-relaxed">
-          {post.content}
-        </p>
 
-        <div className="flex justify-between items-center text-gray-500">
-          <button 
-            onClick={handleLike}
-            className={`flex items-center gap-1.5 transition-colors ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
-          >
-            <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} />
-            <span className="text-xs font-medium">{likeCount}</span>
-          </button>
-          <button 
-            onClick={handleRepost}
-            className={`flex items-center gap-1.5 transition-colors ${isReposted ? 'text-green-500' : 'hover:text-green-500'}`}
-          >
-            <Repeat2 size={18} />
-            <span className="text-xs font-medium">{repostCount}</span>
-          </button>
-          <button 
-            onClick={handleShare}
-            className="flex items-center gap-1.5 hover:text-blue-500 transition-colors"
-          >
-            <Share size={18} />
-          </button>
-          <button 
-            onClick={handleSave}
-            className={`flex items-center gap-1.5 transition-colors ${isSaved ? 'text-yellow-500' : 'hover:text-yellow-500'}`}
-          >
-            <Bookmark size={18} fill={isSaved ? 'currentColor' : 'none'} />
-          </button>
-          <button 
-            onClick={handleReport}
-            className="flex items-center gap-1.5 hover:text-gray-300 transition-colors"
-          >
-            <Flag size={18} />
-          </button>
+          <div className="flex-1 min-w-0">
+            <div className="flex justify-between items-start mb-1">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <Link 
+                    href={post.is_anonymous ? '#' : `/profile?id=${post.user_id}`}
+                    className={`font-bold text-sm text-gray-200 hover:underline ${post.is_anonymous ? 'pointer-events-none' : ''}`}
+                  >
+                    {authorName}
+                  </Link>
+                  {authorAlias && (
+                    <span className="text-xs text-gray-500 font-medium truncate max-w-[100px]">
+                      @{authorAlias}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-gray-500 font-medium">
+                  {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                </div>
+              </div>
+              <button 
+                onClick={handleReport}
+                className="text-gray-600 hover:text-gray-400 transition-colors"
+                title="Report post"
+              >
+                <Flag size={14} />
+              </button>
+            </div>
+            
+            <Link href={`/post/${post.id}`} className="block">
+              <p className="text-base text-gray-300 mb-4 whitespace-pre-wrap leading-relaxed">
+                {post.content}
+              </p>
+            </Link>
+
+            <div className="flex justify-between items-center text-gray-500 max-w-sm">
+              <button 
+                onClick={handleLike}
+                className={`flex items-center gap-1.5 transition-colors group ${isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
+              >
+                <div className={`p-2 rounded-full group-hover:bg-red-500/10 transition-colors`}>
+                  <Heart size={18} fill={isLiked ? 'currentColor' : 'none'} />
+                </div>
+                <span className="text-xs font-medium">{likeCount}</span>
+              </button>
+              <button 
+                onClick={handleRepost}
+                className={`flex items-center gap-1.5 transition-colors group ${isReposted ? 'text-green-500' : 'hover:text-green-500'}`}
+              >
+                <div className={`p-2 rounded-full group-hover:bg-green-500/10 transition-colors`}>
+                  <Repeat2 size={18} />
+                </div>
+                <span className="text-xs font-medium">{repostCount}</span>
+              </button>
+              <button 
+                onClick={handleShare}
+                className="flex items-center gap-1.5 hover:text-blue-500 transition-colors group"
+              >
+                <div className={`p-2 rounded-full group-hover:bg-blue-500/10 transition-colors`}>
+                  <Share size={18} />
+                </div>
+              </button>
+              <button 
+                onClick={handleSave}
+                className={`flex items-center gap-1.5 transition-colors group ${isSaved ? 'text-yellow-500' : 'hover:text-yellow-500'}`}
+              >
+                <div className={`p-2 rounded-full group-hover:bg-yellow-500/10 transition-colors`}>
+                  <Bookmark size={18} fill={isSaved ? 'currentColor' : 'none'} />
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
       </article>
 

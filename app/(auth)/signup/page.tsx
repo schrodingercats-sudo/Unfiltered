@@ -12,6 +12,7 @@ export default function Signup() {
   const [college, setCollege] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const router = useRouter();
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -27,6 +28,7 @@ export default function Signup() {
 
     setLoading(true);
     setError('');
+    setSuccess(false);
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -41,10 +43,39 @@ export default function Signup() {
     if (error) {
       setError(error.message);
     } else {
-      router.push('/feed');
+      // If session is null, it means email confirmation is required
+      if (!data.session) {
+        setSuccess(true);
+      } else {
+        router.push('/feed');
+      }
     }
     setLoading(false);
   };
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-black text-white">
+        <div className="max-w-md w-full text-center space-y-6">
+          <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <h1 className="text-4xl font-black uppercase tracking-tighter">Check your email</h1>
+          <p className="text-gray-400">
+            We&apos;ve sent a verification link to <span className="text-white font-bold">{email}</span>. 
+            Please confirm your email to activate your anonymous identity.
+          </p>
+          <div className="pt-6">
+            <Link href="/login" className="text-white hover:underline font-medium">
+              Back to Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-black text-white">
