@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
 
 // Per-route rate limit: 10 moderation requests per minute per IP
 const modRateMap = new Map<string, { count: number; resetAt: number }>();
@@ -44,7 +46,7 @@ export async function POST(req: Request) {
     // 1. Fetch blocked words from Supabase (with fallback)
     let bannedWords: string[] = [];
     try {
-      const { data, error } = await supabaseAdmin.from('blocked_words').select('word');
+      const { data, error } = await getSupabaseAdmin().from('blocked_words').select('word');
       if (!error && data && data.length > 0) {
         bannedWords = data.map((w) => w.word);
       }
@@ -92,7 +94,7 @@ export async function POST(req: Request) {
     // 2. Check OpenAI toggle
     let openAiEnabled = true;
     try {
-      const { data } = await supabaseAdmin
+      const { data } = await getSupabaseAdmin()
         .from('platform_settings')
         .select('value')
         .eq('key', 'openai_moderation_enabled')
