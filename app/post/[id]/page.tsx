@@ -6,7 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { BottomNav } from '@/components/BottomNav';
 import { VerifiedBadge } from '@/components/PostCard';
 import { formatDistanceToNow } from 'date-fns';
-import { Send, MessageSquare, ArrowLeft } from 'lucide-react';
+import { Send, MessageSquare, ArrowLeft, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function PostDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -105,6 +105,24 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    if (!user) return;
+    if (!confirm('Delete this comment?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .delete()
+        .eq('id', commentId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen bg-black text-white flex items-center justify-center">Loading...</div>;
   }
@@ -142,6 +160,9 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
               </div>
               <div className="text-xs text-gray-500 mt-1">
                 {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                {post.updated_at && post.updated_at !== post.created_at && (
+                  <span className="ml-1 text-gray-600">(edited)</span>
+                )}
               </div>
             </div>
           </div>
@@ -163,8 +184,9 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
             ) : (
               comments.map((comment) => {
                 const isCommentVerified = comment.profiles?.role === 'admin';
+                const isCommentOwner = user?.id === comment.user_id;
                 return (
-                  <div key={comment.id} className="flex gap-3">
+                  <div key={comment.id} className="flex gap-3 group">
                     <div className="w-8 h-8 bg-gray-800 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold">
                       {comment.profiles?.alias?.charAt(0).toUpperCase() || '?'}
                     </div>
@@ -175,6 +197,15 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
                         <span className="text-[10px] text-gray-500">
                           {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
                         </span>
+                        {isCommentOwner && (
+                          <button
+                            onClick={() => handleDeleteComment(comment.id)}
+                            className="ml-auto p-1 text-gray-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 sm:opacity-100"
+                            title="Delete comment"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                       <p className="text-sm text-gray-300 leading-relaxed">{comment.content}</p>
                     </div>
@@ -202,7 +233,8 @@ export default function PostDetail({ params }: { params: Promise<{ id: string }>
             className="flex-1 bg-gray-900 border border-gray-800 rounded-full px-4 py-2 text-sm focus:ring-1 focus:ring-white outline-none transition-all"
           />
           <button
-            type="submit"            disabled={!newComment.trim() || submitting}
+            type="submit"
+            disabled={!newComment.trim() || submitting}
             className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center disabled:opacity-50 transition-opacity"
           >
             <Send size={18} />

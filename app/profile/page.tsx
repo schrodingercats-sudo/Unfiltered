@@ -424,17 +424,7 @@ function ProfileContent() {
           ) : (
             <div className="divide-y divide-gray-800">
               {posts.map((post) => (
-                <div key={post.id} className="relative group">
-                  <PostCard post={post} />
-                  {isOwnProfile && (
-                    <button 
-                      onClick={() => handleDeletePost(post.id)}
-                      className="absolute top-4 right-4 p-2 text-gray-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
-                </div>
+                <PostCard key={post.id} post={post} onPostUpdated={fetchProfileData} onPostDeleted={fetchProfileData} />
               ))}
             </div>
           )}

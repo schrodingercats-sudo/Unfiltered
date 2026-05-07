@@ -94,7 +94,7 @@ export default function Saved() {
         ) : (
           <div className="divide-y divide-gray-800">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+              <PostCard key={post.id} post={post} onPostUpdated={fetchSavedPosts} onPostDeleted={fetchSavedPosts} />
             ))}
           </div>
         )}

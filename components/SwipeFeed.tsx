@@ -104,6 +104,11 @@ function SwipeCard({ post, isTop, index, onSwipe }: { post: any; isTop: boolean;
   const nopeScale = useTransform(x, [0, -80, -150], [0.5, 0.8, 1]);
   const bgLike = useTransform(x, [0, 150], ['rgba(34,197,94,0)', 'rgba(34,197,94,0.08)']);
   const bgNope = useTransform(x, [0, -150], ['rgba(239,68,68,0)', 'rgba(239,68,68,0.08)']);
+  const bgCard = useTransform(
+    x,
+    [-150, 0, 150],
+    ['rgba(17,17,17,1)', 'rgba(17,17,17,1)', 'rgba(17,17,17,1)']
+  );
 
   const handleDragEnd = (_e: any, info: any) => {
     const threshold = 80;
@@ -128,11 +133,7 @@ function SwipeCard({ post, isTop, index, onSwipe }: { post: any; isTop: boolean;
         zIndex: 10 - index,
         scale: 1 - index * 0.05,
         y: index * 12,
-        background: isTop ? useTransform(
-          x,
-          [-150, 0, 150],
-          ['rgba(17,17,17,1)', 'rgba(17,17,17,1)', 'rgba(17,17,17,1)']
-        ) : 'rgb(17,17,17)',
+        background: isTop ? bgCard : 'rgb(17,17,17)',
         border: '1px solid rgba(255,255,255,0.06)',
       }}
       drag={isTop ? 'x' : false}

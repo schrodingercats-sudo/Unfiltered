@@ -131,7 +131,7 @@ export default function Feed() {
         ) : viewMode === 'scroll' ? (
           <div className="divide-y divide-gray-800">
             {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+              <PostCard key={post.id} post={post} onPostUpdated={fetchPosts} onPostDeleted={fetchPosts} />
             ))}
           </div>
         ) : (
